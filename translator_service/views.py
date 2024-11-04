@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .utils.translator import translate_word
+from .serializers import TranslateWordSerializer
 
 
 class TranslatorViewSet(viewsets.ViewSet):
@@ -8,29 +9,27 @@ class TranslatorViewSet(viewsets.ViewSet):
     ViewSet для перевода слов с использованием LibreTranslate.
     """
 
-    def list(self, request):
+    def create(self, request):
         """
-        Обрабатывает GET-запросы на /translate/
+        Обрабатывает POST-запросы на /translate/
         """
-        word = request.query_params.get('word', '').strip()
-        source_lang = request.query_params.get('source_lang', 'en').strip()
-        target_lang = request.query_params.get('target_lang', 'ru').strip()
+        serializer = TranslateWordSerializer(data=request.data)
+        if serializer.is_valid():
+            word = serializer.validated_data['word']
+            source_lang = serializer.validated_data.get('source_lang', 'en')
+            target_lang = serializer.validated_data.get('target_lang', 'ru')
 
-        if not word:
-            return Response(
-                {"error": "Слово для перевода не указано."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            translation = translate_word(word, source_lang, target_lang)
 
-        translation = translate_word(word, source_lang, target_lang)
-
-        if translation:
-            return Response(
-                {"word": word, "translation": translation},
-                status=status.HTTP_200_OK
-            )
+            if translation:
+                return Response(
+                    {"word": word, "translation": translation},
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"error": "Не удалось выполнить перевод."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         else:
-            return Response(
-                {"error": "Не удалось выполнить перевод."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
